@@ -6,6 +6,7 @@ from app.api.routes import post_blp as post_blueprint
 
 
 def create_app():
+    load_dotenv()
     app = Flask(__name__)
 
     app.config["PROPAGATE_EXCEPTIONS"] = True
