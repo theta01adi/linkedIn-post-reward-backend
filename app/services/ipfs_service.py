@@ -39,7 +39,7 @@ def upload_post_and_get_cid( post_content, linkedin_username ):
     try:
         response = requests.post(os.getenv("PINATA_API_URL"), headers=headers, data=data, files=files)
         response.raise_for_status()  # raises HTTPError for non-2xx responses
-
+        del json_post_file
         json_response = response.json()
     except requests.exceptions.RequestException as e:
         abort(502, message=f"Network error while uploading: {str(e)}")
