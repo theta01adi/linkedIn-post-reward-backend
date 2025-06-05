@@ -1,13 +1,14 @@
 import os
+from web3 import Web3
 from eth_account import Account
 from flask import request, jsonify
 from flask_smorest import Blueprint, abort
 from werkzeug.exceptions import HTTPException
 from app.services.gemini_service import check_post_authenticity
 from app.services.ipfs_service import upload_post_and_get_cid
-from app.blockchain.web3_config import OWNER_PRIVATE_KEY
+from app.blockchain.web3_config import OWNER_PRIVATE_KEY, LINKEDIN_CONTRACT_ADDRESS
 from app.blockchain.verification_service import verify_register_data, verify_post_submit_data
-from app.blockchain.web3_services import register_user, get_username, submit_user_cid
+from app.blockchain.web3_services import register_user, get_username, submit_user_cid, get_is_post_submitted
 from app.api.schemas import RegisterDataSchema, PostSubmitSchema
 
 post_blp = Blueprint("linkedin_post", __name__, description="Opreations that involves Gemini API")
@@ -62,7 +63,18 @@ def submit_post(request_data):
         if verify_post_submit_data(post_base64=post_base64, post_content=post_content, user_address=user_address, signed_message=signed_message):
             linkedin_username = get_username(user_address=user_address)
 
+        if not linkedin_username:
+            abort(
+                400,
+                message="You are not registered for the dapp."
+            )
+        print(LINKEDIN_CONTRACT_ADDRESS)
         print("LinkedIn username : ", linkedin_username)
+        if get_is_post_submitted(user_address=user_address):
+            abort(
+                400,
+                message="You have already submitted the post."
+            )
 
         if check_post_authenticity(post_content=post_content, post_base64=post_base64):
             cid = upload_post_and_get_cid(post_content=post_content, linkedin_username=linkedin_username)

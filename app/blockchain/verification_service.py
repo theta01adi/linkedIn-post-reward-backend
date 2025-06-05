@@ -11,6 +11,12 @@ def verify_register_data(wallet_address, signed_message, username):
     if not username or not username.strip():
         abort(400,
               message="Username cannot be empty !!")
+        
+    if not signed_message or not signed_message.strip():
+        abort(
+            400,
+            "Signed message can't be empty!!"
+        )
     
     if not Web3.is_address(wallet_address):
         abort(400,
@@ -37,15 +43,21 @@ def verify_post_submit_data(user_address, post_content, post_base64, signed_mess
     if not Web3.is_address(user_address):
         abort(400,
               message="Invalid wallet address!!")
+        
+    if not signed_message or not signed_message.strip():
+        abort(
+            400,
+            "Signed message can't be empty!!"
+        )
 
     if not post_base64 or not post_base64.strip():
         abort(400,
-            "Image can't be empty!!" )
+            message="Image can't be empty!!" )
         
     if not post_content or not post_content.strip():
         abort(
             400,
-            "Post content can't be empty!!"
+            message="Post content can't be empty!!"
         )
 
     ORIGINAL_POST_SUBMIT_MESSAGE = "You are submiting your linkedin post screenshot and post content to LinkedInPost Reward Dapp !!"
