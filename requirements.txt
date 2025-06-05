@@ -3,3 +3,5 @@ flask-smorest
 python-dotenv
 google-genai
 pydantic
+flask_cors
+web3
