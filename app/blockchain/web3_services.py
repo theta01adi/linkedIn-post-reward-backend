@@ -14,6 +14,12 @@ def get_username(user_address):
 
     return username
 
+def get_is_post_submitted(user_address):
+
+    submit_status = contract_instance.functions.isPostSubmitted(Web3.to_checksum_address(user_address)).call()
+
+    return submit_status
+
 def register_user(user_address, username):
 
     try:
@@ -74,15 +80,14 @@ def submit_user_cid(user_address, post_cid):
     except ContractLogicError as e:
         error_message = str(e).split(': ')[1]
         print(error_message)
-
         abort(
             400,
-            message=f"{error_message}"
+            message="Unable to submit post!!"
         )
 
     except Exception as e:
         print(str(e))
         abort(
             500,
-            message="Unexpected error : failed!!"
+            message="Unable to submit post!!"
         )
