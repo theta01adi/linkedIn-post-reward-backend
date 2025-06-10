@@ -1,9 +1,13 @@
 from .web3_instance import get_web3_instance, get_contract_instance
-from .web3_config import OWNER_PRIVATE_KEY, OWNER_PUBLIC_ADDRESS
+from .web3_config import OWNER_PRIVATE_KEY, OWNER_PUBLIC_ADDRESS, PINATA_JWT
 from flask import jsonify
 from web3 import Web3
 from flask_smorest import abort
 from web3.exceptions import ContractLogicError
+import requests
+import os
+from requests.exceptions import RequestException, HTTPError, Timeout
+import time
 
 web3 = get_web3_instance()
 contract_instance = get_contract_instance()
@@ -91,3 +95,100 @@ def submit_user_cid(user_address, post_cid):
             500,
             message="Unable to submit post!!"
         )
+
+def download_private_json(cid, expires=100):
+    try:
+        file_url = f"https://{os.getenv('PINATA_GATEWAY_DOMAIN')}.mypinata.cloud/files/{cid}"
+        headers = {
+            "Authorization": PINATA_JWT,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "url": file_url,
+            "expires": expires,
+            "date" : int(time.time()),
+            "method": "GET"
+        }
+
+        # Step 1: Get presigned download link
+        resp = requests.post(
+            os.getenv("PINATA_DOWNLOAD_URL"),
+            json=payload,
+            headers=headers,
+            timeout=10
+        )
+        if not resp.ok:
+            print("🔴 Error from Pinata while generating presigned link:", resp.text)
+            abort(resp.status_code, message="Failed to get presigned download link from Pinata.")
+
+
+        presigned_url = resp.json().get("data")
+        if not presigned_url:
+            raise ValueError("Presigned URL not found in Pinata response")
+
+        # Fetching content from presigned URL
+        file_resp = requests.get(presigned_url, timeout=10)
+        if not file_resp.ok:
+            print("🔴 Failed to download file:", file_resp.text)
+            abort(file_resp.status_code, message="Failed to download file from IPFS.")
+
+        return file_resp.json()
+
+    except (HTTPError, RequestException, Timeout) as net_err:
+        print(f"🔴 Network error during file download: {net_err}")
+        raise RuntimeError("Failed to download file from IPFS: network error")
+
+    except ValueError as ve:
+        print(f"🔴 Data format error: {ve}")
+        raise RuntimeError("Invalid response from Pinata service")
+
+    except Exception as e:
+        print(f"❌ Unexpected error during IPFS download: {e}")
+        raise RuntimeError("Unknown error during IPFS download")
+
+def get_all_posts_data():
+
+    try:
+
+        submitted_data = contract_instance.functions.getSubmittedCids().call({'from': OWNER_PUBLIC_ADDRESS})
+
+        parsed_submitted_data = parse_submitted_cids(submitted_data=submitted_data)
+        if not parsed_submitted_data:
+            return ({ "submitted_posts" : "No posts submitted yet!" })
+        
+        user_adresses = list(parsed_submitted_data.keys())
+        for user_address in user_adresses:
+            cid = parsed_submitted_data[user_address]['post_cid']
+            post_json_data = download_private_json(cid=cid)
+            parsed_submitted_data[user_address].update(post_json_data)
+
+        return (parsed_submitted_data)
+    except ContractLogicError as err:
+        print(err)
+        abort(
+            400,
+            message="Contract execution failed"
+        )
+
+    except Exception as e:
+        print(str(e))
+        abort(
+            500,
+            message="Unexpected error : failed!!"
+        )
+    
+
+def parse_submitted_cids(submitted_data):
+
+    parsed_data = {}
+
+    if not submitted_data:
+        return {}
+    
+    for data in submitted_data:
+
+        user_address = data[0]
+        cid = data[1]
+        # Nested dictionary to store user address and associated CID
+        parsed_data[user_address] = {"post_cid" : cid}
+    return parsed_data

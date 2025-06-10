@@ -8,7 +8,7 @@ from app.services.gemini_service import check_post_authenticity
 from app.services.ipfs_service import upload_post_and_get_cid
 from app.blockchain.web3_config import OWNER_PRIVATE_KEY, LINKEDIN_CONTRACT_ADDRESS
 from app.blockchain.verification_service import verify_register_data, verify_post_submit_data
-from app.blockchain.web3_services import register_user, get_username, submit_user_cid, get_is_post_submitted
+from app.blockchain.web3_services import register_user, get_username, submit_user_cid, get_is_post_submitted, get_all_posts_data
 from app.api.schemas import RegisterDataSchema, PostSubmitSchema
 
 post_blp = Blueprint("linkedin_post", __name__, description="Opreations that involves Gemini API")
@@ -92,3 +92,29 @@ def submit_post(request_data):
         abort(500,
             message="Error submitting the post."
             )    
+        
+
+@post_blp.route("/announce-result", methods=["GET"])
+def announce_result():
+    """
+    This endpoint is used to announce the result of the post submission.
+    It will return the winner users who post content got maximum rating by AI.
+    """
+    try:
+        # Fetch all registered users and their post submission status
+        
+        post_data = get_all_posts_data()
+        if not post_data:
+            return jsonify({"message": "No posts found."}), 404
+        
+        print(post_data)
+        print("Post data fetched successfully")
+
+        return jsonify(post_data), 200
+    except HTTPException as http_err:
+        print(http_err)
+        # Re-raise so Smorest handles it cleanly
+        raise http_err
+    except Exception as err:
+        print(f"Error in announcing result: {err}")
+        abort(500, message="Error fetching results.")
