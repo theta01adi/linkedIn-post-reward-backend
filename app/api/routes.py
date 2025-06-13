@@ -4,11 +4,11 @@ from eth_account import Account
 from flask import request, jsonify
 from flask_smorest import Blueprint, abort
 from werkzeug.exceptions import HTTPException
-from app.services.gemini_service import check_post_authenticity
+from app.services.gemini_service import check_post_authenticity, rate_post_content
 from app.services.ipfs_service import upload_post_and_get_cid
 from app.blockchain.web3_config import OWNER_PRIVATE_KEY, LINKEDIN_CONTRACT_ADDRESS
 from app.blockchain.verification_service import verify_register_data, verify_post_submit_data
-from app.blockchain.web3_services import register_user, get_username, submit_user_cid, get_is_post_submitted, get_all_posts_data
+from app.blockchain.web3_services import register_user, get_username, submit_user_cid, get_is_post_submitted, get_all_posts_data, announce_winner
 from app.api.schemas import RegisterDataSchema, PostSubmitSchema
 
 post_blp = Blueprint("linkedin_post", __name__, description="Opreations that involves Gemini API")
@@ -103,14 +103,34 @@ def announce_result():
     try:
         # Fetch all registered users and their post submission status
         
-        post_data = get_all_posts_data()
-        if not post_data:
+        submitted_post_data = get_all_posts_data()
+        if not submitted_post_data:
             return jsonify({"message": "No posts found."}), 404
         
-        print(post_data)
-        print("Post data fetched successfully")
+        print(submitted_post_data)
+        
+        highest_rating = {}
+        
+        for user_address in submitted_post_data.keys():
+            post_content = submitted_post_data[user_address].get("post_content")
+            post_rating = (rate_post_content(post_content=post_content))
+            submitted_post_data[user_address]["post_rating"] = post_rating
+            if post_rating > highest_rating.get("rating", 0):
+                highest_rating = {
+                    "user_address": user_address,
+                    "rating": post_rating
+                }
+            print(f"User Address: {user_address}, Post Rating: {post_rating}")
 
-        return jsonify(post_data), 200
+
+        if not highest_rating:
+            abort(500,message="Error fetching results and ratings.")
+
+        txn_hash = announce_winner(winner_address=highest_rating["user_address"])
+
+        print(f"Highest Rating User: {highest_rating['user_address']}, Rating: {highest_rating['rating']}")
+
+        return jsonify({**highest_rating, "txn_hash":txn_hash}), 200
     except HTTPException as http_err:
         print(http_err)
         # Re-raise so Smorest handles it cleanly
