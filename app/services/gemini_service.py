@@ -4,6 +4,9 @@ from pydantic import BaseModel
 from flask import jsonify, json
 from flask_smorest import abort
 
+GEMINI_MODEL = os.getenv("GEMINI_MODEL")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 def get_post_details(post_content, post_base64):
 
     image_analyze_prompt = f"""
@@ -46,10 +49,10 @@ def get_post_details(post_content, post_base64):
         match_pr: float
     
     try:
-        client = genai.Client(api_key= os.getenv("GEMINI_API_KEY"))
+        client = genai.Client(api_key= GEMINI_API_KEY)
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=GEMINI_MODEL,
             contents=[
                 {
                     "inline_data":  {
@@ -112,4 +115,61 @@ def check_post_authenticity(post_content, post_base64):
     return True
 
 
-    
+
+def rate_post_content(post_content): 
+
+    rating_prompt = f"""
+    I will provide you with the content of a LinkedIn post.
+    Please evaluate the post on a percentage scale of 1 to 100, based on the following criteria:
+
+    Clarity and Readability - Is the content easy to understand and well-structured?
+
+    Originality and Authenticity - Does it feel personal and genuine? Does it avoid sounding generic or AI-written?
+
+    Relevance - Is the topic relevant to the intended professional audience?
+
+    Engagement Potential - Does it invite interaction (comments, reactions, discussion)?
+
+    Structure and Formatting - Is it visually readable with short paragraphs, spacing, or bullet points?
+
+    Hook / Opening Line - Does it grab attention and make you want to keep reading?
+
+    Impact or Takeaway - Does it leave a lasting impression or provide a clear lesson?
+
+    Tone and Voice - Is the tone professional, approachable, and consistent with personal branding?
+
+    Emotion and Storytelling - Does it include relatable moments, challenges, or emotional insight?
+
+    Length - Is it concise but complete, ideally under 300-500 words?
+
+    After reading the post, assign a percentage score from 1 (poor) to 100 (excellent) based on overall performance across these criteria.
+    Then, briefly explain why it received that score.
+
+    Here is the LinkedIn post content:
+    {post_content}
+    """
+
+    class PostRating(BaseModel):
+        overall_score : int
+
+    client = genai.Client(api_key=GEMINI_API_KEY)
+
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[rating_prompt],
+        config={
+        "response_mime_type": "application/json",
+        "response_schema": PostRating,
+    },
+    )
+
+    response = json.loads(response.text)
+    score = int(response["overall_score"])
+    if not score:
+        abort(
+            500,
+            message="Error in rating the post content."
+        )
+
+    return (score)
+
