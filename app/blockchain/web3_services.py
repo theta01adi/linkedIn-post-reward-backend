@@ -40,8 +40,8 @@ def register_user(user_address, username):
         tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
         print("Transaction sent:", tx_hash.hex())
 
-        # receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
-        # print("Transaction mined in block", receipt.blockNumber)
+        receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
+        print("Transaction mined in block", receipt.blockNumber)
 
         return tx_hash.hex()
     except ContractLogicError as e:
@@ -192,3 +192,36 @@ def parse_submitted_cids(submitted_data):
         # Nested dictionary to store user address and associated CID
         parsed_data[user_address] = {"post_cid" : cid}
     return parsed_data
+
+
+def announce_winner(winner_address):
+
+    try:
+
+        winner_address = Web3.to_checksum_address(winner_address)
+        txn = contract_instance.functions.announce_winner(winner_address).build_transaction({
+        "from": OWNER_PUBLIC_ADDRESS,
+        "nonce": web3.eth.get_transaction_count(OWNER_PUBLIC_ADDRESS),
+        "gasPrice": web3.eth.gas_price 
+        })
+
+        signed_txn = web3.eth.account.sign_transaction(txn, private_key=OWNER_PRIVATE_KEY)
+
+        tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        print("Transaction sent:", tx_hash.hex())
+
+        return tx_hash.hex()
+
+    except ContractLogicError as err:
+        print(err)
+        abort(
+            400,
+            message="Contract execution failed"
+        )
+
+    except Exception as e:
+        print(str(e))
+        abort(
+            500,
+            message="Unexpected error : failed!!"
+        )
